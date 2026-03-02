@@ -23,25 +23,21 @@ const CERT_PATH = path.join(__dirname, "cert.p12");
 
 // Email Transporter
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // Use SSL
+  service: "gmail",
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS?.replace(/["']/g, "").trim(),
   },
-  connectionTimeout: 15000,
-  greetingTimeout: 15000,
-  socketTimeout: 20000,
-  // Force IPv4 to avoid ENETUNREACH errors on some networks (like Render)
-  // @ts-ignore
-  family: 4
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 30000,
 });
 
 // Verify transporter connection on startup
 transporter.verify((error, success) => {
   if (error) {
     console.error("[SMTP] Connection Error:", error);
+    console.warn("[SMTP] DICA: Se o erro persistir no Render, use os logs para pegar o código de verificação durante os testes.");
   } else {
     console.log("[SMTP] Server is ready to take our messages");
   }
