@@ -24,12 +24,24 @@ const CERT_PATH = path.join(__dirname, "cert.p12");
 // Email Transporter
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false, // Use STARTTLS
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS?.replace(/["']/g, "").trim(),
   },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
+});
+
+// Verify transporter connection on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("[SMTP] Connection Error:", error);
+  } else {
+    console.log("[SMTP] Server is ready to take our messages");
+  }
 });
 
 // Helper: Get Efí Agent
@@ -71,10 +83,18 @@ async function getAccessToken() {
   return response.data.access_token;
 }
 
+// Verify environment variables on startup
+console.log("[ENV] Verificando variáveis de ambiente...");
+console.log("- EFI_CLIENT_ID:", process.env.EFI_CLIENT_ID ? "Configurado" : "AUSENTE");
+console.log("- EFI_PIX_KEY:", process.env.EFI_PIX_KEY ? "Configurado" : "AUSENTE");
+console.log("- SMTP_USER:", process.env.SMTP_USER ? "Configurado" : "AUSENTE");
+console.log("- SMTP_PASS:", process.env.SMTP_PASS ? "Configurado" : "AUSENTE");
+console.log("- JWT_SECRET:", process.env.JWT_SECRET ? "Configurado" : "AUSENTE (Usando padrão)");
+
 async function startServer() {
   const app = express();
   app.set('trust proxy', 1);
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
   app.use(authMiddleware);
@@ -104,13 +124,15 @@ async function startServer() {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     try {
+      console.log(`[AUTH] Solicitando código para: ${email}`);
       db.prepare("DELETE FROM verification_codes WHERE email = ?").run(email);
       db.prepare("INSERT INTO verification_codes (email, code, expires_at) VALUES (?, ?, ?)")
         .run(email, code, expiresAt.toISOString());
 
-      console.log(`\n[AUTH] Código para ${email}: ${code}\n`);
+      console.log(`[AUTH] Código gerado: ${code}`);
 
       if (process.env.SMTP_USER) {
+        console.log(`[SMTP] Tentando enviar e-mail para ${email}...`);
         const emailHtml = `
           <div style="background-color: #000000; padding: 40px 20px; text-align: center;">
             <div style="max-width: 600px; margin: 0 auto; background-color: #0a0a0a; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 40px; color: #ffffff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
@@ -147,11 +169,16 @@ async function startServer() {
           subject: `${code} é o seu código de verificação`,
           html: emailHtml,
         });
+        console.log(`[SMTP] E-mail enviado com sucesso para ${email}`);
+      } else {
+        console.warn("[SMTP] SMTP_USER não configurado. E-mail não enviado.");
+        return res.status(400).json({ error: "Serviço de e-mail não configurado no servidor." });
       }
 
       res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Erro ao enviar código." });
+    } catch (error: any) {
+      console.error("[AUTH] Erro ao enviar código:", error);
+      res.status(500).json({ error: `Erro ao enviar código: ${error.message}` });
     }
   });
 

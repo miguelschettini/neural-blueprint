@@ -2,18 +2,6 @@ import Database from "better-sqlite3";
 
 const db = new Database("database.db");
 
-// Migration: Add is_admin column if it doesn't exist
-try {
-  db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0");
-  console.log("Migration: Added is_admin column to users table.");
-} catch (e: any) {
-  if (e.message.includes("duplicate column name")) {
-    console.log("Migration: is_admin column already exists.");
-  } else {
-    console.error("Migration error:", e);
-  }
-}
-
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,6 +30,20 @@ db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 `);
+
+// Migration: Add is_admin column if it doesn't exist (for older databases)
+try {
+  db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0");
+  console.log("Migration: Added is_admin column to users table.");
+} catch (e: any) {
+  if (e.message.includes("duplicate column name")) {
+    // Column already exists, ignore
+  } else if (e.message.includes("no such table")) {
+    // Table doesn't exist yet, ignore (it will be created by CREATE TABLE)
+  } else {
+    console.error("Migration error:", e);
+  }
+}
 
 // Ensure the specific user is an admin
 try {
