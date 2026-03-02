@@ -24,15 +24,18 @@ const CERT_PATH = path.join(__dirname, "cert.p12");
 // Email Transporter
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // Use STARTTLS
+  port: 465,
+  secure: true, // Use SSL
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS?.replace(/["']/g, "").trim(),
   },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000,
+  // Force IPv4 to avoid ENETUNREACH errors on some networks (like Render)
+  // @ts-ignore
+  family: 4
 });
 
 // Verify transporter connection on startup
